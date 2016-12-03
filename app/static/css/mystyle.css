@@ -1,0 +1,76 @@
+/* div#left, div#center{
+	height:93vh;
+}
+div#left{
+	float:left;
+	width:20vw;
+}
+div#center{
+	width:80vw;
+	margin-left:20vw;
+} */
+
+body{
+	font-size:12px;
+}
+.btn{
+	font-size: inherit;
+}
+td textarea {
+    border: 0px;
+}
+
+/* div, table{
+	border: 1px solid #f00;
+} */
+
+/*
+This defines a flex container; inline or block depending on the given value.
+It enables a flex context for all its direct children.
+*/
+div#main{
+	display: flex; /* or inline-flex */
+	flex-direction: column;
+	height:100vh;
+    padding:.5em;
+}
+
+div#address{
+	flex: 0 0 auto;
+}
+
+div#tables{
+	flex: 0 0 auto;
+	margin-top:0.5em;
+	margin-bottom: 0.5em;
+}
+
+div#table_content{
+	flex: 1 1 auto;
+	overflow: auto; /* for the inner table */
+}
+
+form div{
+	display: flex;
+    flex-direction: row;
+    width: 100%;
+    align-items: center;
+}
+
+div#address form label{
+	flex: 0 0 auto;
+}
+
+div#address form input[type="text"]{
+	flex: 1 1 auto;
+	margin-left: 0.5em;
+	margin-right: 0.5em;
+}
+
+div#address form button{
+	flex: 0 0 auto;
+}
+
+.form-control {
+	font-size: inherit;
+}
