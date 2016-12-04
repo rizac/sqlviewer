@@ -20,16 +20,27 @@
     			</div>
 		</form>
 		</div>
+		<div id="schemas">
+			<ul class="nav nav-tabs">
+			<li ng-repeat="(schemaName, _) in schemas"
+			ng-class="{active:schemaName==selectedSchemaName}">
+				<a href value="{{ '{{' }} schemaName  {{ '}}' }}"
+					ng-click="setSelectedSchemaName(schemaName)">
+				<b>{{ '{{' }} schemaName  {{ '}}' }}</b><br><small>{{ '{{' }} getNumTables(schemaName)  {{ '}}' }} table(s)</small>
+				</a>
+			</li>
+			</ul>
+		</div>
 		<div id="tables">
-		<ul class="nav nav-tabs">
-		<li ng-repeat="(tableName, numItems) in tables"
-		ng-class="{active:tableName==selectedTableName}">
-			<a href value="{{ '{{' }} tableName  {{ '}}' }}"
-				ng-click="setSelectedTableName(tableName)">
-			{{ '{{' }} tableName  {{ '}}' }}<br><small>{{ '{{' }} numItems  {{ '}}' }} rows</small>
-			</a>
-		</li>
-		</ul>
+			<ul class="nav nav-tabs">
+			<li ng-repeat="(tableName, numItems) in tables"
+			ng-class="{active:tableName==selectedTableName}">
+				<a href value="{{ '{{' }} tableName  {{ '}}' }}"
+					ng-click="setSelectedTableName(tableName)">
+				<b>{{ '{{' }} tableName  {{ '}}' }}</b><br><small>{{ '{{' }} numItems  {{ '}}' }} row(s)</small>
+				</a>
+			</li>
+			</ul>
 		</div>
 		<div id="table_content">
 			<table class="table table-condensed table-hover"> <!--  table-striped">-->

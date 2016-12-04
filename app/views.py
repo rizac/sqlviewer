@@ -23,24 +23,26 @@ def index():
 def query_db():
     data = json.loads(request.data.decode())
     address = data['url']
-    if address == 'test':
-        address = 'postgresql://riccardo:@localhost/s2s'
     data = getdb(address)
     ret = []
-    for tablename, table in data.items():
-        ret.append((tablename, get_table_count(table)))
+    for schemaname, tables in data.items():
+        tbls = []
+        for tablename in tables:
+            tbls.append((tablename, get_table_count(tables[tablename])))
+        ret.append([schemaname, tbls])
     return jsonify(ret)
 
 
 @app.route('/query_table', methods=['POST'])
 def query_table():
     data = json.loads(request.data.decode())
-    tablename = data['name']
+    schemaname = data['schema_name']
+    tablename = data['table_name']
     start_at = data.get('start_at', 0)
     num_results = data.get('num_results', None)
     order_colname = data.get('order_colname', None)
     order_ascending = data.get('order_ascending', True)
-    data = get_table(tablename, order_colname, order_ascending, start_at, num_results)
+    data = get_table(schemaname, tablename, order_colname, order_ascending, start_at, num_results)
 #    ret = []
 #     for tablename, table in data.items():
 #         ret.append((tablename, get_table_count(table)))
