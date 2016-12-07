@@ -11,18 +11,22 @@ div#center{
 } */
 
 body{
-	font-size:12px;
+	/* font-size:13px; */
 }
 .btn{
 	font-size: inherit;
 }
+
 td textarea {
     border: 0px;
+    width: 100%;
 }
 
-/* div, table{
-	border: 1px solid #f00;
-} */
+/* override bootstrap */
+.nav>li>a {
+   /*  padding: 6px 8px; */ /*10px 15px;*/
+	text-align: center;
+}
 
 /*
 This defines a flex container; inline or block depending on the given value.
@@ -33,6 +37,10 @@ div#main{
 	flex-direction: column;
 	height:100vh;
     padding:.5em;
+}
+
+.note{
+	font-size: smaller;
 }
 
 div#address{
@@ -73,4 +81,26 @@ div#address form button{
 
 .form-control {
 	font-size: inherit;
+}
+
+.pk, .fk, .uc{
+	border-radius: 5px;
+	font-size: small;
+}
+
+.pk, .fk, .uc{
+	padding: 1px 5px;
+    border-radius: 5px;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.fk{
+	background-color: #FFAD33;
+}
+.uc{
+	background-color: #4CAF50;
+}
+.pk{
+	background-color: #C2391A;
 }

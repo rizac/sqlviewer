@@ -10,7 +10,7 @@ from core.sql import getdb, get_table_count, get_table
 from flask.templating import render_template
 from flask.globals import request
 import json
-from flask import jsonify
+from flask import jsonify, g as flask_g
 
 
 @app.route('/')
@@ -30,7 +30,7 @@ def query_db():
         for tablename in tables:
             tbls.append((tablename, get_table_count(tables[tablename])))
         ret.append([schemaname, tbls])
-    return jsonify(ret)
+    return jsonify({'dburl': data.dburl, 'schemas': ret})
 
 
 @app.route('/query_table', methods=['POST'])
@@ -47,3 +47,11 @@ def query_table():
 #     for tablename, table in data.items():
 #         ret.append((tablename, get_table_count(table)))
     return jsonify(data)
+
+
+@app.errorhandler(Exception)
+def exception_handler(error):
+    response = jsonify({'message': "%s: %s" % (str(error.__class__.__name__), str(error))})
+    response.status_code = 500
+    return response
+    # return "!!!!" + repr(error)

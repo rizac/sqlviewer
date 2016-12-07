@@ -21,6 +21,8 @@ import os
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
+from core.sql import set_chache_address
+from app import app
 
 __all__ = []
 __version__ = 0.1
@@ -31,15 +33,19 @@ DEBUG = 1
 TESTRUN = 0
 PROFILE = 0
 
+
 class CLIError(Exception):
     '''Generic exception to raise and log different fatal errors.'''
     def __init__(self, msg):
         super(CLIError).__init__(type(self))
         self.msg = "E: %s" % msg
+
     def __str__(self):
         return self.msg
+
     def __unicode__(self):
         return self.msg
+
 
 def main(argv=None): # IGNORE:C0111
     '''Command line options.'''
@@ -56,8 +62,8 @@ def main(argv=None): # IGNORE:C0111
     program_shortdesc = __import__('__main__').__doc__.split("\n")[1]
     program_license = '''%s
 
-  Created by user_name on %s.
-  Copyright 2016 organization_name. All rights reserved.
+  Created by Riccardo Zaccarelli on %s.
+  Copyright 2016. All rights reserved.
 
   Licensed under the Apache License 2.0
   http://www.apache.org/licenses/LICENSE-2.0
@@ -71,35 +77,28 @@ USAGE
     try:
         # Setup argument parser
         parser = ArgumentParser(description=program_license, formatter_class=RawDescriptionHelpFormatter)
-        parser.add_argument("-r", "--recursive", dest="recurse", action="store_true", help="recurse into subfolders [default: %(default)s]")
-        parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
-        parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE" )
-        parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE" )
+#         parser.add_argument("-r", "--recursive", dest="recurse", action="store_true", help="recurse into subfolders [default: %(default)s]")
+#         parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="set verbosity level [default: %(default)s]")
+#         parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE" )
+#         parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE" )
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
-        parser.add_argument(dest="paths", help="paths to folder(s) with source file(s) [default: %(default)s]", metavar="path", nargs='+')
+        parser.add_argument(dest="dburl",
+                            help=("The database url in the form: "
+                                  "dialect://username:password@host:port/database . "
+                                  "E.g.: postgresql://scott:tiger@localhost/mydb "
+                                  "(for sqlite: sqlite:///path. "
+                                  "E.g.: sqlite:////home/data/db.sqlite"),
+                            metavar="dburl",
+                            nargs="?")
 
         # Process arguments
         args = parser.parse_args()
 
-        paths = args.paths
-        verbose = args.verbose
-        recurse = args.recurse
-        inpat = args.include
-        expat = args.exclude
-
-        if verbose > 0:
-            print("Verbose mode on")
-            if recurse:
-                print("Recursive mode on")
-            else:
-                print("Recursive mode off")
-
-        if inpat and expat and inpat == expat:
-            raise CLIError("include and exclude pattern are equal! Nothing will be processed.")
-
-        for inpath in paths:
-            ### do something with inpath ###
-            print(inpath)
+        
+        if args.dburl:
+            # http://stackoverflow.com/questions/19277280/preserving-global-state-in-a-flask-application
+            set_chache_address(args.dburl)
+        app.run()
         return 0
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
@@ -113,22 +112,22 @@ USAGE
         return 2
 
 if __name__ == "__main__":
-    if DEBUG:
-        sys.argv.append("-h")
-        sys.argv.append("-v")
-        sys.argv.append("-r")
-    if TESTRUN:
-        import doctest
-        doctest.testmod()
-    if PROFILE:
-        import cProfile
-        import pstats
-        profile_filename = 'main_profile.txt'
-        cProfile.run('main()', profile_filename)
-        statsfile = open("profile_stats.txt", "wb")
-        p = pstats.Stats(profile_filename, stream=statsfile)
-        stats = p.strip_dirs().sort_stats('cumulative')
-        stats.print_stats()
-        statsfile.close()
-        sys.exit(0)
+#     if DEBUG:
+#         sys.argv.append("-h")
+#         sys.argv.append("-v")
+#         sys.argv.append("-r")
+#     if TESTRUN:
+#         import doctest
+#         doctest.testmod()
+#     if PROFILE:
+#         import cProfile
+#         import pstats
+#         profile_filename = 'main_profile.txt'
+#         cProfile.run('main()', profile_filename)
+#         statsfile = open("profile_stats.txt", "wb")
+#         p = pstats.Stats(profile_filename, stream=statsfile)
+#         stats = p.strip_dirs().sort_stats('cumulative')
+#         stats.print_stats()
+#         statsfile.close()
+#         sys.exit(0)
     sys.exit(main())

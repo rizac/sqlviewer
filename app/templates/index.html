@@ -6,66 +6,93 @@
   	<!-- Latest compiled and minified CSS -->
 	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
     <link rel="stylesheet" href="static/css/mystyle.css">
-    <title>{{ title }} - microblog</title>
+    <title>SQLViewer</title>
   </head>
   <body ng-app='myApp'>
-      <div ng-controller="myCtrl" id=main>
+        <div ng-controller="myCtrl" id=main>
 		<div id=address>
 			<form id="db_address" ng-submit="queryDb()">
 				<div>
 					<label for="dbaddr_">Db address</label>
     				<input type="text" id="dbaddr_" ng-model="dbAddress" 
-    					placeholder="E.g. sqlite:////Users/me/data/mydb.sqlite" class="form-control"/>
+    					placeholder="dialect://username:password@host:port/database E.g.: postgresql://scott:tiger@localhost/mydb (for sqlite: sqlite:///path. E.g.: sqlite:////home/data/db.sqlite" class="form-control"/>
     				<button class="btn btn-primary" type="submit">View</button>
     			</div>
 		</form>
 		</div>
 		<div id="schemas">
+			<div style="display:inline-block">Schema(s)</div>
 			<ul class="nav nav-tabs">
 			<li ng-repeat="(schemaName, _) in schemas"
 			ng-class="{active:schemaName==selectedSchemaName}">
 				<a href value="{{ '{{' }} schemaName  {{ '}}' }}"
 					ng-click="setSelectedSchemaName(schemaName)">
-				<b>{{ '{{' }} schemaName  {{ '}}' }}</b><br><small>{{ '{{' }} getNumTables(schemaName)  {{ '}}' }} table(s)</small>
+				<b>{{ '{{' }} schemaName  {{ '}}' }}</b><br><span class="note">{{ '{{' }} getNumTables(schemaName)  {{ '}}' }} table(s)</span>
 				</a>
 			</li>
 			</ul>
 		</div>
 		<div id="tables">
+			<div style="display:inline-block">Table(s)</div>
 			<ul class="nav nav-tabs">
 			<li ng-repeat="(tableName, numItems) in tables"
-			ng-class="{active:tableName==selectedTableName}">
+			ng-class="{active:tableName==selectedTable.name}">
 				<a href value="{{ '{{' }} tableName  {{ '}}' }}"
 					ng-click="setSelectedTableName(tableName)">
-				<b>{{ '{{' }} tableName  {{ '}}' }}</b><br><small>{{ '{{' }} numItems  {{ '}}' }} row(s)</small>
+				<b>{{ '{{' }} tableName  {{ '}}' }}</b><br><span class="note">{{ '{{' }} numItems  {{ '}}' }} row(s)</span>
 				</a>
 			</li>
 			</ul>
 		</div>
 		<div id="table_content">
-			<table class="table table-condensed table-hover"> <!--  table-striped">-->
-  				<tr ng-repeat="x in selectedTableDataHeader">
-    				<th ng-repeat="v in x track by $index">
-    				<a href ng-click="toggleColSort(selectedTableDataHeader[0][$index])">
-    				{{ '{{' }} v {{ '}}' }}
-    				</a>
-    				<span ng-if="$parent.$index==0" ng-show="selectedTableDataHeader[0][$index]==orderColName && orderAscending">
-    				&darr;
-    				</span>
-    				<span ng-if="$parent.$index==0" ng-show="selectedTableDataHeader[0][$index]==orderColName && !orderAscending">
-    				&uarr;
-    				</span>
+			<table ng-if="selectedTable" class="table table-bordered table-condensed"> <!--  table-striped">-->
+			<thead>
+  				<tr>
+    				<th ng-repeat="v in selectedTable.columns">
+	    				<a href ng-click="toggleColSort(selectedTable.columns[$index])">
+	    					{{ '{{' }} v {{ '}}' }}
+	    					<span ng-if="selectedTable.columns[$index]==orderColName && orderAscending">
+	    						&#8681;<!-- &darr; -->
+	    					</span>
+	    					<span ng-if="selectedTable.columns[$index]==orderColName && !orderAscending">
+	    						&#8679;<!-- &uarr; -->
+	    					</span>
+	    				</a>
+	    				
     				</th>
 			    </tr>
-  				<tr ng-repeat="x in selectedTableData">
+			    <tr>
+    				<th ng-repeat="v in selectedTable.types track by $index">
+	    				<a href ng-click="toggleColSort(selectedTable.columns[$index])">
+	    					{{ '{{' }} v {{ '}}' }}
+	    				</a>
+	    				<span class="pk note" ng-if="isPrimaryKey(selectedTable.columns[$index])">
+	    					pk
+	    				</span>
+	    				<span class="fk note" ng-if="getForeignKeyIndex(selectedTable.columns[$index])>-1">
+	    					fk#{{ '{{' }} getForeignKeyIndex(selectedTable.columns[$index])+1 {{ '}}' }}
+	    				</span>
+	    				<span class="uc note" ng-if="getuniqueConstraintsIndex(selectedTable.columns[$index])>-1">
+	    					uc#{{ '{{' }} getuniqueConstraintsIndex(selectedTable.columns[$index])+1 {{ '}}' }}
+	    				</span>
+    				</th>
+			    </tr>
+			</thead>
+			<tbody>
+  				<tr ng-repeat="x in selectedTable.data">
     				<td ng-repeat="v in x track by $index">
     				<textarea ng-if="(v+'').indexOf('\n') != -1">{{ '{{' }} v {{ '}}' }}</textarea>
     				<!-- <input ng-if="(v+'').indexOf('\n') == -1" type='text' value="{{ '{{' }} v {{ '}}' }}" /> -->
     				<span ng-if="(v+'').indexOf('\n') == -1">{{ '{{' }} v {{ '}}' }}</span>
     				</td>
 			   </tr>
+			</tbody>
 			</table>
 		</div>
+		<div ng-if="errorMsg ? true : false" class="alert alert-danger">
+    		<a href ng-click="clearErrorMsg()" class="close" aria-label="close">×</a>
+    		{{ '{{' }}errorMsg{{ '}}' }}
+  		</div>
     </div>
   </body>
 </html>
