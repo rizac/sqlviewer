@@ -36,6 +36,15 @@ class Db(odict):
     def __init__(self, dburl):
         super(Db, self).__init__()
         self.dburl = dburl
+        if not dburl:
+            return
+        # if we return, this class evaluates to False. so it's safe to write: "if currentdb:". From
+        # https://docs.python.org/3/reference/datamodel.html#object.__bool__
+        # object.__bool__(self) is called to implement truth value testing and the built-in
+        # operation bool(); should return False or True. **When this method is not defined,
+        # __len__() is called**, if it is defined (it is, we are subclassing dict), and the object
+        # is considered true if its result is nonzero. If a class defines neither __len__() nor
+        # __bool__(), all its instances are considered true.
         self.engine = create_engine(dburl)
         self._session = None
         session = Session(self.engine)
@@ -102,8 +111,12 @@ def getdb(address):
             global _cache_address
             address = _cache_address
             set_chache_address(None)
-        currentdb = None if not address else Db(address)
-    return {} if not currentdb else currentdb
+        currentdb = Db(address)
+        if currentdb:
+            g = 9
+        else:
+            g = 0
+    return currentdb
 
 
 def get_table_count(table):

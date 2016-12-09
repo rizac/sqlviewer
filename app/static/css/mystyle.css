@@ -22,11 +22,28 @@ td textarea {
     width: 100%;
 }
 
-/* override bootstrap */
-.nav>li>a {
-   /*  padding: 6px 8px; */ /*10px 15px;*/
-	text-align: center;
+
+
+.caption{
+	font-weight: normal;
 }
+
+/* override bootstrap */
+/* .nav>li>a {
+    padding: 6px 8px; 10px 15px;
+	text-align: center;
+} */
+
+.nav>li>span {
+    padding: 10px 15px; /* same as bootstrap's */
+	text-align: right;
+	display:block;  /* necessary for aligning with other li's */
+}
+
+.nav>li>span {
+    padding-left: 0px;
+}
+
 
 /*
 This defines a flex container; inline or block depending on the given value.
@@ -49,13 +66,40 @@ div#address{
 
 div#tables{
 	flex: 0 0 auto;
-	margin-top:0.5em;
-	margin-bottom: 0.5em;
 }
 
 div#table_content{
 	flex: 1 1 auto;
 	overflow: auto; /* for the inner table */
+}
+
+td.numeric, th.numeric{
+	text-align:right;
+}
+
+div#footer{
+	flex: 0 0 auto;
+	display: flex;
+    flex-direction: row;
+    width: 100%;
+    align-items: center;
+}
+
+div#footer > div.table-options{
+    font-size: x-large;
+    flex: 0 0 auto;
+}
+
+div#footer > div.messages{
+    flex: 1 1 auto;
+}
+
+div#main > div:not(:first-child) {
+    margin-top:0.3em;
+}
+
+div#table_content th {
+    vertical-align: text-top !important;
 }
 
 form div{
@@ -104,3 +148,27 @@ div#address form button{
 .pk{
 	background-color: #C2391A;
 }
+
+/* animations */
+/* The animation code */
+@keyframes warningAnimation {
+    from {opacity: 1;}
+    to {opacity: 0.5;}
+}
+
+div.working{
+	animation-name: warningAnimation;
+    animation-duration: 1s;
+    animation-iteration-count: infinite;
+}
+
+div.table-details {
+    position: fixed;
+    right: 0px;
+    width: 33vw;
+    height: 40vh;
+    overflow: auto;
+    box-shadow: -5px 5px 12px 0px grey;
+    bottom: 0px;
+}
+
