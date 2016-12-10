@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta charset="UTF-8">
   	<script type="text/javascript" src="static/js/angular.min.js"></script>
-  	<script type="text/javascript" src="static/js/postmodule.js"></script>
+  	<script type="text/javascript" src="static/js/myapp.js"></script>
   	<!-- Latest compiled and minified CSS -->
 	<link rel="stylesheet" href="static/css/bootstrap.min.css">
     <link rel="stylesheet" href="static/css/mystyle.css">
@@ -15,7 +16,8 @@
 				<div>
 					<label class=caption for="dbaddr_">Db address</label>
     				<input type="text" id="dbaddr_" ng-model="dbAddress" 
-    					placeholder="dialect://username:password@host:port/database E.g.: postgresql://scott:tiger@localhost/mydb (for sqlite: sqlite:///path. E.g.: sqlite:////home/data/db.sqlite" class="form-control"/>
+    					placeholder="dialect://username:password@host:port/database E.g.: postgresql://scott:tiger@localhost/mydb (for sqlite: sqlite:///path. E.g.: sqlite:////home/data/db.sqlite"
+    					class="form-control"/>
     				<button class="btn btn-primary" type="submit">View</button>
     			</div>
 		</form>
@@ -45,7 +47,56 @@
 			</ul>
 		</div>
 		<div id="table_content">
-			<div ng-if="showSelTableDetails" class="table-details alert alert-info">
+			<table ng-if="selectedTable" class="table table-bordered table-condensed"> <!--  table-striped">-->
+			<thead>
+  				<tr>
+  					<th></th>
+    				<th ng-repeat="v in selectedTable.columns">
+	    				<a href ng-click="toggleColSort(selectedTable.columns[$index])">
+	    					{{ '{{' }} v {{ '}}' }}
+	    				</a>
+	    				<div ng-class="{darr:!selectedTable.orderAscending, uarr:selectedTable.orderAscending}"
+	    					ng-if="selectedTable.columns[$index]==selectedTable.orderColName">
+	    				</div>
+    				</th>
+			    </tr>
+			    <tr>
+    				<th></th>
+    				<th ng-repeat="v in selectedTable.types track by $index">
+	    				<a href ng-click="toggleColSort(selectedTable.columns[$index])">
+	    					{{ '{{' }} v {{ '}}' }}
+	    				</a>
+	    				<span class=col_info>
+		    				<span class="pk note" ng-if="isPrimaryKey(selectedTable.columns[$index])">
+		    					pk
+		    				</span>
+		    				<span class="fk note" ng-if="getForeignKeyIndex(selectedTable.columns[$index])>-1">
+		    					fk {{ '{{' }} getForeignKeyIndex(selectedTable.columns[$index])+1 {{ '}}' }}
+		    				</span>
+		    				<span class="uc note" ng-if="getUniqueConstraintsIndex(selectedTable.columns[$index])>-1">
+		    					uc {{ '{{' }} getUniqueConstraintsIndex(selectedTable.columns[$index])+1 {{ '}}' }}
+		    				</span>
+		    				<span class="idx note" ng-if="getIndexesIndex(selectedTable.columns[$index])>-1">
+		    					idx {{ '{{' }} getIndexesIndex(selectedTable.columns[$index])+1 {{ '}}' }}
+		    				</span>
+	    				</span>
+    				</th>
+			    </tr>
+			</thead>
+			<tbody>
+  				<tr ng-repeat="x in selectedTable.data">
+    				<th>{{ '{{' }} 1 + selectedTable.view[1] + $index {{ '}}' }}</th>
+    				<td ng-repeat="v in x track by $index" ng-class="{numeric:(selectedTable.pyTypes[$index]=='int' || selectedTable.pyTypes[$index]=='float')}">
+    				<textarea ng-if="v.newline">{{ '{{' }} v.val {{ '}}' }}</textarea>  <!-- <input ng-if="(v+'').indexOf('\n') == -1" type='text' value="{{ '{{' }} v {{ '}}' }}" /> -->
+    				<span class="null-val" ng-if="v.val==null">NULL</span>
+    				<span class="bin-type" ng-if="selectedTable.pyTypes[$index]=='bytes' && v.val!=null ">binary: {{ '{{' }} v.val {{ '}}' }} Kb</span>
+    				<span ng-if="selectedTable.pyTypes[$index]!='bytes' && v!=null  && !v.newline">{{ '{{' }} v.val {{ '}}' }}</span>
+    				</td>
+			   </tr>
+			</tbody>
+			</table>
+			<!--  detail div "popup": -->
+			<div ng-if="showSelTableDetails" class="table-details alert">
     			<a href ng-click="$parent.showSelTableDetails = false" class="close" aria-label="close">×</a>
     			<div>
     				<strong>Primary key</strong> <span class="pk note">pk</span>
@@ -56,7 +107,7 @@
     				<p>
     				<strong>{{ '{{' }} len(selectedTable.foreignKeys) + " " + (len(selectedTable.foreignKeys) ==1 ? "Foreign key" : "Foreign keys") {{ '}}' }}</strong> <span class="fk note">fk</span>
     				<div ng-repeat="val in selectedTable.foreignKeys track by $index">
-    					<span class="fk note">fk#{{ '{{' }} $index+1 {{ '}}' }}</span> <!-- <pre>{{ '{{' }} val | json {{ '}}' }}</pre> -->
+    					<span class="fk note">fk {{ '{{' }} $index+1 {{ '}}' }}</span> <!-- <pre>{{ '{{' }} val | json {{ '}}' }}</pre> -->
     					<div ng-repeat="(key, subval) in val">
     						<span>{{ '{{' }} key {{ '}}' }}</span> <pre>{{ '{{' }} subval | json {{ '}}' }}</pre>
     					</div>
@@ -65,56 +116,33 @@
     				<p>
     				<strong>{{ '{{' }} len(selectedTable.uniqueConstraints) + " " + (len(selectedTable.uniqueConstraints) ==1 ? "Unique Constraint" : "Unique Constraints") {{ '}}' }}</strong> <span class="uc note">uc</span>
     				<div ng-repeat="val in selectedTable.uniqueConstraints track by $index">
-    					<span class="uc note">uc#{{ '{{' }} $index+1 {{ '}}' }}</span> <!-- <pre>{{ '{{' }} val | json {{ '}}' }}</pre> -->
+    					<span class="uc note">uc {{ '{{' }} $index+1 {{ '}}' }}</span> <!-- <pre>{{ '{{' }} val | json {{ '}}' }}</pre> -->
     				    <div ng-repeat="(key, subval) in val">
     						<span>{{ '{{' }} key {{ '}}' }}</span> <pre>{{ '{{' }} subval | json {{ '}}' }}</pre>
     					</div>
     				</div>
-    				
+    				<strong>{{ '{{' }} len(selectedTable.indexes) + " " + (len(selectedTable.indexes) ==1 ? "Index" : "Indexes") {{ '}}' }}</strong> <span class="idx note">idx</span>
+    				<div ng-repeat="val in selectedTable.indexes track by $index">
+    					<span class="idx note">idx {{ '{{' }} $index+1 {{ '}}' }}</span> <!-- <pre>{{ '{{' }} val | json {{ '}}' }}</pre> -->
+    				    <div ng-repeat="(key, subval) in val">
+    						<span>{{ '{{' }} key {{ '}}' }}</span> <pre>{{ '{{' }} subval | json {{ '}}' }}</pre>
+    					</div>
+    				</div>
+    				<div ng-repeat="val in selectedTable.checkConstraints track by $index">
+    					<span class="cc note">cc {{ '{{' }} $index+1 {{ '}}' }}</span> <!-- <pre>{{ '{{' }} val | json {{ '}}' }}</pre> -->
+    				    <div ng-repeat="(key, subval) in val">
+    						<span>{{ '{{' }} key {{ '}}' }}</span> <pre>{{ '{{' }} subval | json {{ '}}' }}</pre>
+    					</div>
+    				</div>
     			</div>
   			</div>
-			<table ng-if="selectedTable" class="table table-bordered table-condensed"> <!--  table-striped">-->
-			<thead>
-  				<tr>
-    				<th ng-repeat="v in selectedTable.columns">
-	    				<a href ng-click="toggleColSort(selectedTable.columns[$index])">
-	    					{{ '{{' }} v {{ '}}' }}
-	    					<span ng-if="selectedTable.columns[$index]==selectedTable.orderColName && selectedTable.orderAscending">
-	    						&#8681;<!-- &darr; -->
-	    					</span>
-	    					<span ng-if="selectedTable.columns[$index]==selectedTable.orderColName && !selectedTable.orderAscending">
-	    						&#8679;<!-- &uarr; -->
-	    					</span>
-	    				</a>
-	    				
-    				</th>
-			    </tr>
-			    <tr>
-    				<th ng-repeat="v in selectedTable.types track by $index">
-	    				<a href ng-click="toggleColSort(selectedTable.columns[$index])">
-	    					{{ '{{' }} v {{ '}}' }}
-	    				</a>
-	    				<span class="pk note" ng-if="isPrimaryKey(selectedTable.columns[$index])">
-	    					pk
-	    				</span>
-	    				<span class="fk note" ng-if="getForeignKeyIndex(selectedTable.columns[$index])>-1">
-	    					fk#{{ '{{' }} getForeignKeyIndex(selectedTable.columns[$index])+1 {{ '}}' }}
-	    				</span>
-	    				<span class="uc note" ng-if="getUniqueConstraintsIndex(selectedTable.columns[$index])>-1">
-	    					uc#{{ '{{' }} getUniqueConstraintsIndex(selectedTable.columns[$index])+1 {{ '}}' }}
-	    				</span>
-    				</th>
-			    </tr>
-			</thead>
-			<tbody>
-  				<tr ng-repeat="x in selectedTable.data">
-    				<td ng-repeat="v in x track by $index" ng-class="{numeric:selectedTable.typeIsNumeric[$index]}">
-    				<textarea ng-if="selectedTable.typeIsText[$index] && v.indexOf('\n') != -1">{{ '{{' }} v {{ '}}' }}</textarea>  <!-- <input ng-if="(v+'').indexOf('\n') == -1" type='text' value="{{ '{{' }} v {{ '}}' }}" /> -->
-    				<span ng-if="!selectedTable.typeIsText[$index] || v.indexOf('\n') == -1">{{ '{{' }} v {{ '}}' }}</span>
-    				</td>
-			   </tr>
-			</tbody>
-			</table>
+  			<!-- raw sql create text popup for the selected table -->
+  			<div ng-if="showTableSqlCreate" class="table-sql-create alert">
+  				<a href ng-click="$parent.showTableSqlCreate = false" class="close" aria-label="close">×</a>
+    			<pre>
+    			{{ '{{' }}selectedTable.sqlCreateText {{ '}}' }}
+    			</pre>
+  			</div>
 		</div>
 		<div id=footer>
 			<div class=messages>
@@ -126,8 +154,35 @@
 		  			<strong>Please wait...</strong>
 				</div>
 			</div>
-			<div class="table-options" ng-if="!showSelTableDetails && len(selectedTable)">
-				<a href ng-click="$parent.showSelTableDetails = true">&#9776;</a>
+			<div class="table-options" ng-if="selectedTable">
+				<table class=short_table_info>
+					<thead>
+						<tr>
+							<td><span class="pk note" >pk</span></td>
+							<td><span class="fk note" >fk</span></td>
+							<td><span class="uc note" >uc</span></td>
+							<td><span class="cc note" >cc</span></td>
+							<td><span class="idx note">idx</span></td>
+						</tr>
+					</thead>
+					<tbody>
+						<tr>
+							<td><span ng-if="len(selectedTable.primaryKey)">✓</span></td>
+							<td><span ng-if="len(selectedTable.foreignKeys)">{{ '{{' }}selectedTable.foreignKeys.length{{ '}}' }} </span></td>
+							<td><span ng-if="len(selectedTable.uniqueConstraints)">{{ '{{' }}selectedTable.uniqueConstraints.length{{ '}}' }} </span></td>
+							<td><span ng-if="len(selectedTable.checkConstraints)">{{ '{{' }}selectedTable.checkConstraints.length{{ '}}' }} </span></td>
+							<td><span ng-if="len(selectedTable.indexes)">{{ '{{' }}selectedTable.indexes.length{{ '}}' }} </span></td>
+						</tr>
+					</tbody>
+				</table>
+				<button ng-click="$parent.showSelTableDetails = true" class="btn btn-primary">I</button>
+				&nbsp;
+				<button ng-click="$parent.showTableSqlCreate = true" class="btn btn-primary">sql</button>
+				&nbsp;
+				<button ng-click="changeView('start')" ng-disabled="selectedTable.view[0] == selectedTable.view[1]" class='btn btn-primary'><div class='larr'></div><div class='larr'></div></button>
+				<button ng-click="changeView(-1)" ng-disabled="selectedTable.view[0] == selectedTable.view[1]" class='btn btn-primary'><div class='larr'></div></button>
+				<button ng-click="changeView(1)" ng-disabled="selectedTable.view[2] >= selectedTable.view[3]" class='btn btn-primary'><div class='rarr'></div></button>
+				<button ng-click="changeView('end')" ng-disabled="selectedTable.view[2] >= selectedTable.view[3]" class='btn btn-primary'><div class='rarr'></div><div class='rarr'></div></button>
 			</div>
 		</div>
     </div>

@@ -13,7 +13,7 @@ from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from sqlalchemy.schema import CreateTable
-from sqlalchemy.sql.expression import func
+from sqlalchemy.sql.expression import func, nullsfirst, asc, nullslast
 from sqlalchemy import inspect
 from sqlalchemy.sql.sqltypes import NullType
 
@@ -93,6 +93,9 @@ class Db(odict):
     def query(self, *args, **kwargs):
         return self.session.query(*args, **kwargs)
 
+    def get_sql_create(self, tablename, schemaname):
+#          http://stackoverflow.com/questions/2128717/sqlalchemy-printing-raw-sql-from-create
+        return CreateTable(self.get_table(schemaname, tablename)).compile(self.engine)
 
 # dburi: specify a database uri
 # Usually, it is a sqlite database, in which case just write the path to your local file
@@ -173,7 +176,7 @@ def get_table(schemaname, tablename, order_colname=None, order_ascending=True, s
                     return self._str
 
                 def python_type(self):
-                    return None
+                    return None.__class__
 
             if typname:
                 typ = MyNullType(typname)
@@ -187,38 +190,54 @@ def get_table(schemaname, tablename, order_colname=None, order_ascending=True, s
             col = cols[order_colname]
             typ = types[order_colname]
             orderbyfilt = func.length(col) if typ.python_type == bytes else col
-            query = currentdb.query(table).order_by(desc(orderbyfilt) if not order_ascending
-                                                    else orderbyfilt)
+            orderbyfilt = asc(orderbyfilt) if order_ascending else desc(orderbyfilt)
+            # sqlite does not offer "nullfirst" and "nulllast" functionality. See
+            # https://bitbucket.org/zzzeek/sqlalchemy/issues/3231/nullsfirst-nullslast-broken-with-sqlite
+            if currentdb.engine.name != 'sqlite':
+                orderbyfilt = nullsfirst(orderbyfilt) if order_ascending else nullslast(orderbyfilt)
+            query = currentdb.query(table).order_by(orderbyfilt)
         else:
             query = currentdb.query(table)
 
         res = query[start_at:start_at+num_results]
         ret = []
+        # typezz = {}
         if res:
             for dbrow in res:
                 row = []
                 for colname in colnames:
                     typ = types[colname]
                     val = getattr(dbrow, colname)
-                    if val is None:
-                        val = "NULL"
-                    elif typ.python_type == bytes:
-                        val = "[byte data: %.3f Kb]" % (0 if not val else len(val)/1000.0)
-                    elif typ.python_type not in (int, float):
-                        val = str(val)
-                    row.append(val)
+#                     if val is None:
+#                         val = val
+#                     elif typ.python_type == bytes:
+#                         val = "[byte data: %.3f Kb]" % (0 if not val else len(val)/1000.0)
+#                     elif typ.python_type not in (int, float):
+#                         val = str(val)
+#
+                    value = {'val':val}
+                    if typ.python_type == bytes and val is not None:
+                        value['val'] = len(val) / 1000.0
+                    elif typ.python_type == str and val is not None and "\n" in val:
+                        value['newline'] = True
+                    row.append(value)
+                    # typezz[str(typ.python_type)] = None
                 ret.append(row)
 #         ret.insert(0, [str(types[c]) for c in colnames])
 #         ret.insert(0, colnames)
+        # kkk = list(typezz.keys())
+        j = 9
         return {'data': ret,
+                'sql_create': str(currentdb.get_sql_create(tablename, schemaname)),
                 'types': [str(types[c]) for c in colnames],
+                'python_types': [types[c].python_type.__name__ for c in colnames],
                 'columns': colnames,
                 'uc': currentdb.insp.get_unique_constraints(tablename, schemaname),
                  # 'pk': currentdb.insp.get_primary_keys(tablename, schemaname),
                 'pk': currentdb.insp.get_pk_constraint(tablename, schemaname),
                 'idx': currentdb.insp.get_indexes(tablename, schemaname),
                 'fk': currentdb.insp.get_foreign_keys(tablename, schemaname), #
-                'cc': currentdb.insp.get_check_constraints(tablename, schemaname),
+                'cc': currentdb.insp.get_check_constraints(tablename, schemaname),  # list of dicts
                 }
     except SQLAlchemyError as _:
         currentdb.rollback()

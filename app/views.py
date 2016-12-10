@@ -38,11 +38,11 @@ def query_table():
     data = json.loads(request.data.decode())
     schemaname = data['schema_name']
     tablename = data['table_name']
-    start_at = data.get('start_at', 0)
+    start_row = data.get('start_row', 0)
     num_results = data.get('num_results', None)
     order_colname = data.get('order_colname', None)
     order_ascending = data.get('order_ascending', True)
-    data = get_table(schemaname, tablename, order_colname, order_ascending, start_at, num_results)
+    data = get_table(schemaname, tablename, order_colname, order_ascending, start_row, num_results)
 #    ret = []
 #     for tablename, table in data.items():
 #         ret.append((tablename, get_table_count(table)))
