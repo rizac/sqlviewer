@@ -1,54 +1,156 @@
 '''
+Class handling the inspoection of a SQL database via the SqlAlchemy `inspection` 
 Created on Dec 2, 2016
 
-@author: riccardo
+@author: riccardo zaccarelli, PhD <riccardo.zaccarelli@gmail.com>
+
+@license:
+
+@copyright:
 '''
-from sqlalchemy import create_engine, MetaData, Table, inspect
+import os
+from collections import OrderedDict as odict
+from copy import copy
+from sqlalchemy import create_engine, MetaData, Table, inspect, desc
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import reflection
-from sqlalchemy.exc import NoSuchTableError, SQLAlchemyError
-from collections import OrderedDict as odict
-from sqlalchemy import desc
+from sqlalchemy.exc import NoSuchTableError, SQLAlchemyError, OperationalError, ProgrammingError
 from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.sql.expression import func, nullsfirst, asc, nullslast
-from sqlalchemy import inspect
 from sqlalchemy.sql.sqltypes import NullType
-
+from sqlalchemy.engine.url import make_url
+from sqlalchemy.pool import NullPool
 currentdb = None
 
-_cache_address = None
-
-def set_chache_address(address):
-    global _cache_address
-    _cache_address = address
-# drivers installed: psycopg2 (postgres)
+# drivers installed: psycopg2 (postgres), and don't remember (mysql). sqlite3 is present by default
 
 # references:
 # http://docs.sqlalchemy.org/en/latest/orm/extensions/automap.html
 # http://stackoverflow.com/questions/22689895/list-of-databases-in-sqlalchemy
 # http://docs.sqlalchemy.org/en/latest/core/reflection.html
 
-class Db(odict):
 
+# copied from
+# http://sqlalchemy-utils.readthedocs.io/en/latest/_modules/sqlalchemy_utils/functions/database.html#database_exists
+def database_exists(url):
+    """Check if a database exists.
+
+    :param url: A SQLAlchemy engine URL.
+
+    Performs backend-specific testing to quickly determine if a database
+    exists on the server. ::
+
+        database_exists('postgres://postgres@localhost/name')  #=> False
+        create_database('postgres://postgres@localhost/name')
+        database_exists('postgres://postgres@localhost/name')  #=> True
+
+    Supports checking against a constructed URL as well. ::
+
+        engine = create_engine('postgres://postgres@localhost/name')
+        database_exists(engine.url)  #=> False
+        create_database(engine.url)
+        database_exists(engine.url)  #=> True
+
+    """
+
+    url = copy(make_url(url))
+    database = url.database
+    if url.drivername.startswith('postgresql'):
+        url.database = 'template1'
+    else:
+        url.database = None
+
+    engine = create_engine(url)
+
+    if engine.dialect.name == 'postgresql':
+        text = "SELECT 1 FROM pg_database WHERE datname='%s'" % database
+        return bool(engine.execute(text).scalar())
+
+    elif engine.dialect.name == 'mysql':
+        text = ("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA "
+                "WHERE SCHEMA_NAME = '%s'" % database)
+        return bool(engine.execute(text).scalar())
+
+    elif engine.dialect.name == 'sqlite':
+        if database:
+            return database == ':memory:' or os.path.exists(database)
+        else:
+            # The default SQLAlchemy database is in memory,
+            # and :memory is not required, thus we should support that use-case
+            return True
+
+    else:
+        text = 'SELECT 1'
+        try:
+            url.database = database
+            engine = create_engine(url)
+            engine.execute(text)
+            return True
+
+        except (ProgrammingError, OperationalError):
+            return False
+
+
+class Db(odict):
+    """
+    An OrderedDict reflecting an inspected SQL Database. Its key are the db schema names,
+    mapped to the relative tables. The tables are in turn OrderedDict's where the keys are
+    the table name and the values are `sqlalchemy.sql.schema.Table`s objects
+
+    An Object of this class opens an sqlalchemy session which must be closed via the `.close()`
+    method.
+
+    Example:
+    ```
+        d = Db(address)
+        d.keys() # -> schema names
+        schema1 = d.keys()[0]
+        tables = d[schema1] # -> OrderedDict
+        tables.keys()  # -> table names
+        tables.values()  # -> `sqlalchemy.sql.schema.Table`s objects
+    ```
+    """
     def __init__(self, dburl):
+        """
+        Initialized a new Db object with the given dburl. If the latter is empty or points to a
+        non existent database, the object returned evaluates to False (as it has no keys). Otherwise
+        this object keys are the schema names and the values are in turn `OrderedDict`s with table
+        names (string) mapped to `sqlalchemy.sql.schema.Table`s objects (the schema tables)
+
+        :param dburl: a database url. The syntax is:
+        ```dialect+driver://username:password@host:port/database```
+        (For sqlite databases, is` sqlite:///filepath`)
+        For info see: http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls.
+        Examples:
+            Db('postgresql://me:@localhost/s2s')
+            Db('sqlite:///./mydb.sqlite_nov_2016')
+        """
         super(Db, self).__init__()
         self.dburl = dburl
-        if not dburl:
+        if hasattr(self, "_session") and self._session:
+            self._session.close()  # disposes also the engine (see below create_engine)
+        if not dburl or not database_exists(dburl):
+            # it is necessary to check existence of db cause e.g., with sqlite the file
+            # is created if does not exist (not tested with other dialects, presumably is not so
+            # with postgresql)
             return
-        # if we return, this class evaluates to False. so it's safe to write: "if currentdb:". From
-        # https://docs.python.org/3/reference/datamodel.html#object.__bool__
-        # object.__bool__(self) is called to implement truth value testing and the built-in
-        # operation bool(); should return False or True. **When this method is not defined,
-        # __len__() is called**, if it is defined (it is, we are subclassing dict), and the object
-        # is considered true if its result is nonzero. If a class defines neither __len__() nor
-        # __bool__(), all its instances are considered true.
-        self.engine = create_engine(dburl)
-        self._session = None
-        session = Session(self.engine)
-        insp = inspect(self.engine)
+            # if we return, this class evaluates to False. so it's safe to write: "if currentdb:".
+            # From
+            # https://docs.python.org/3/reference/datamodel.html#object.__bool__
+            # object.__bool__(self) is called to implement truth value testing and the built-in
+            # operation bool(); should return False or True. **When this method is not defined,
+            # __len__() is called**, if it is defined (it is, we are subclassing dict), and the
+            # object
+            # is considered true if its result is nonzero. If a class defines neither __len__() nor
+            # __bool__(), all its instances are considered true.
+
+        # make an engine which is disposed every time we close the session
+        # see http://stackoverflow.com/questions/21738944/how-to-close-a-sqlalchemy-session
+        self.engine = create_engine(dburl, poolclass=NullPool)
+        self._session = Session(self.engine)
+        session = self._session
+        insp = inspect(self.engine)  # this line creates the db if doesnt exists with sqlite!
         self.insp = insp
         schemas = insp.get_schema_names()
         for schema in schemas:
@@ -65,71 +167,84 @@ class Db(odict):
                     tables[tname] = table
                 except (SQLAlchemyError) as _:
                     pass
-        session.close()
-
-    def close(self):
-        if self._session:
-            self._session.close()
 
     def __eq__(self, other):
+        """
+        equality implementation: compares the database urls. FIXME: is it used? is it consistent?
+        """
         return isinstance(other, Db) and other.dburl == self.dburl
 
     def get_table(self, schema, tablename):
+        """Returns the `sqlalchemy.sql.schema.Table` of the specified schema and with given name, or
+        None if no such table.
+        :param schema: the table schema (string)
+        :param tablename: the table name (string)
+        :return the table named `tablename` under the schema named `schema`, or None if no such
+        table
+        """
         tables = self.get(schema, None)
         if not tables:
             return None
         return tables.get(tablename, None)
 
-    @property
-    def session(self):
-        if not self._session:
-            self._session = Session(self.engine)
-        return self._session
-
-    def rollback(self):
-        if self._session:
-            self._session.rollback()
-
     def query(self, *args, **kwargs):
-        return self.session.query(*args, **kwargs)
+        """Convenience method that returns a query object from the underlying session
+        ```self.query(*a, **v) == self._session.query(*a, **v)```
+        """
+        return self._session.query(*args, **kwargs)
 
     def get_sql_create(self, tablename, schemaname):
-#          http://stackoverflow.com/questions/2128717/sqlalchemy-printing-raw-sql-from-create
-        return CreateTable(self.get_table(schemaname, tablename)).compile(self.engine)
+        """Returns a string which represents the raw sql from create. Returns an empty string
+        if no table was found.
+        :param tablename: string, The tablename
+        :param schemaname: string the table schema
+        """
+        # http://stackoverflow.com/questions/2128717/sqlalchemy-printing-raw-sql-from-create
+        tbl = self.get_table(schemaname, tablename)
+        return "" if tbl is None else CreateTable(tbl).compile(self.engine)
 
-# dburi: specify a database uri
-# Usually, it is a sqlite database, in which case just write the path to your local file
-# PREPENED with 'sqlite:///' (e.g., 'sqlite:////home/my_folder/db.sqlite')
-# Otherwise, the syntax is:
-# dialect+driver://username:password@host:port/database
-# (for info see: http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls)
-# EG: 'postgresql://riccardo:@localhost/s2s'  # 'sqlite:///./mydb.sqlite_nov_2016'
-#
+    def get_row_count(self, table):
+        """returns the number of rows of the current table object, or 0 if the current
+            such table.
+            :param table: the `sqlalchemy.sql.schema.Table` object. If you have the schema name S
+            and table name T:
+            ```
+                self.get_row_count(self.get_table(S, T))
+            ```
+            """
+        if not self:
+            return 0
+        return currentdb.query(table).count()
+
+
 def getdb(address):
+    """Returns a Db object from the given address. The returned object can be iterated as it
+    subclasses `OrderedDict`:
+    ```
+        d = getdb(address)
+        d.keys() # -> schema names
+        schema1 = d.keys()[0]
+        tables = d[schema1] # -> OrderedDict
+        tables.keys()  # -> table names
+        tables.values()  # -> `sqlalchemy.sql.schema.Table`s objects
+    ```
+    :param address: a valid db address
+    (see http://docs.sqlalchemy.org/en/latest/core/engines.html#database-urls)
+    """
     global currentdb
     if not currentdb or currentdb.dburl != address:
         if currentdb:
             currentdb.close()
-        if not address:
-            global _cache_address
-            address = _cache_address
-            set_chache_address(None)
         currentdb = Db(address)
-        if currentdb:
-            g = 9
-        else:
-            g = 0
+        if address and not currentdb:
+            raise ValueError("database does not exist")
     return currentdb
 
 
-def get_table_count(table):
-    global currentdb
-    if not currentdb:
-        return 0
-    return currentdb.query(table).count()
-
-
 def get_types(schemaname, tablename):
+    """
+    Returns the types of the gievn table with name `tablename` under the schema `schemaname`.
+    The types are a list of column types"""
     conn = currentdb.engine.connect()
 
     res = conn.execute("""SELECT COLUMN_NAME, DATA_TYPE
@@ -140,8 +255,8 @@ TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s' """ % (schemaname, tablename))
     return{row[0]: row[1] for row in res}
 
 
-def get_table(schemaname, tablename, order_colname=None, order_ascending=True, start_at=0,
-              num_results=20):
+def get_table_data(schemaname, tablename, order_colname=None, order_ascending=True, start_at=0,
+                   num_results=20):
     global currentdb
     table = currentdb.get_table(schemaname, tablename) if currentdb else None
     if table is None:
@@ -208,59 +323,25 @@ def get_table(schemaname, tablename, order_colname=None, order_ascending=True, s
                 for colname in colnames:
                     typ = types[colname]
                     val = getattr(dbrow, colname)
-#                     if val is None:
-#                         val = val
-#                     elif typ.python_type == bytes:
-#                         val = "[byte data: %.3f Kb]" % (0 if not val else len(val)/1000.0)
-#                     elif typ.python_type not in (int, float):
-#                         val = str(val)
-#
-                    value = {'val':val}
+                    value = {'val': val}
                     if typ.python_type == bytes and val is not None:
                         value['val'] = len(val) / 1000.0
                     elif typ.python_type == str and val is not None and "\n" in val:
                         value['newline'] = True
                     row.append(value)
-                    # typezz[str(typ.python_type)] = None
                 ret.append(row)
-#         ret.insert(0, [str(types[c]) for c in colnames])
-#         ret.insert(0, colnames)
-        # kkk = list(typezz.keys())
-        j = 9
         return {'data': ret,
                 'sql_create': str(currentdb.get_sql_create(tablename, schemaname)),
                 'types': [str(types[c]) for c in colnames],
                 'python_types': [types[c].python_type.__name__ for c in colnames],
                 'columns': colnames,
                 'uc': currentdb.insp.get_unique_constraints(tablename, schemaname),
-                 # 'pk': currentdb.insp.get_primary_keys(tablename, schemaname),
                 'pk': currentdb.insp.get_pk_constraint(tablename, schemaname),
                 'idx': currentdb.insp.get_indexes(tablename, schemaname),
-                'fk': currentdb.insp.get_foreign_keys(tablename, schemaname), #
+                'fk': currentdb.insp.get_foreign_keys(tablename, schemaname),
                 'cc': currentdb.insp.get_check_constraints(tablename, schemaname),  # list of dicts
                 }
     except SQLAlchemyError as _:
-        currentdb.rollback()
+        # currentdb.rollback()
         raise
-    # return last_result[last_result.keys()[0]][start_at:start_at+num_results]
 
-
-# def get_python_type(type):
-#     try:
-#         return type.python_type
-#     except NotImplementedError:  # if type is instanceof NullType. e.g. type polygon for postgresql
-#         return None
-# 
-# 
-# def type2str(type):
-#     try:
-#         return str(type)
-#     except SQLAlchemyError:  # if type is instanceof NullType. e.g. type polygon for postgresql
-#         return "UNRECOGNIZED TYPE"
-
-# http://stackoverflow.com/questions/2128717/sqlalchemy-printing-raw-sql-from-create
-# def get_create_raw_sql(engine, table):
-#     return CreateTable(table.__table__).compile(engine)
-
-# if __name__ == "__main__":
-#     getdb('postgresql://riccardo:@localhost/test')

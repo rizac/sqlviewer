@@ -21,8 +21,11 @@ import os
 
 from argparse import ArgumentParser
 from argparse import RawDescriptionHelpFormatter
-from core.sql import set_chache_address
+import threading
+import webbrowser
 from app import app
+from core import set_chache_address
+# import random
 
 __all__ = []
 __version__ = 0.1
@@ -82,6 +85,7 @@ USAGE
 #         parser.add_argument("-i", "--include", dest="include", help="only include paths matching this regex pattern. Note: exclude is given preference over include. [default: %(default)s]", metavar="RE" )
 #         parser.add_argument("-e", "--exclude", dest="exclude", help="exclude paths matching this regex pattern. [default: %(default)s]", metavar="RE" )
         parser.add_argument('-V', '--version', action='version', version=program_version_message)
+        parser.add_argument('-D', '--debug', action='store_true')
         parser.add_argument(dest="dburl",
                             help=("The database url in the form: "
                                   "dialect://username:password@host:port/database . "
@@ -93,12 +97,11 @@ USAGE
 
         # Process arguments
         args = parser.parse_args()
-
-        
         if args.dburl:
             # http://stackoverflow.com/questions/19277280/preserving-global-state-in-a-flask-application
             set_chache_address(args.dburl)
-        app.run()
+        #app.run()
+        run_in_browser(debug=args.debug)
         return 0
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
@@ -110,6 +113,14 @@ USAGE
         sys.stderr.write(program_name + ": " + repr(e) + "\n")
         sys.stderr.write(indent + "  for help use --help")
         return 2
+
+
+def run_in_browser(debug=False):
+    port = 5473  # 5000 + random.randint(0, 999)
+    url = "http://127.0.0.1:{0}".format(port)
+    threading.Timer(4 if debug else 1.25, lambda: webbrowser.open(url)).start()
+    app.run(port=port, debug=debug)  # , use_reloader=False)
+
 
 if __name__ == "__main__":
 #     if DEBUG:

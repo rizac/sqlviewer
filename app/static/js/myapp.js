@@ -1,5 +1,5 @@
 angular.module('myApp', [])
-.controller('myCtrl', function ($scope, $http) {
+.controller('myCtrl', function ($scope, $http, $window) {
     $scope.dbAddress = "";
     $scope.schemas = {}; // $scope.schemas = {schema [string]: tables [Object]},
     //where tables is in turn an object of pairs: {name [string]: rows [int]}
@@ -8,8 +8,10 @@ angular.module('myApp', [])
     $scope.selectedTable = undefined;
     $scope.errorMsg = null;
     $scope.working=false;
-    $scope.showSelTableDetails = false;
+    $scope.showWindowPopup = false;
+    $scope.windowPopupRawContent = "";
     $scope.DEFAULT_NUM_ROWS = 20;
+    $scope.MAX_CELL_STR_LEN = 2000;
     // not used for now but leave them here:
     $scope._numericTypesStarts=["INTEGER", "SMALLINT", "INTEGER", "BIGINT", "DECIMAL",
                                   "NUMERIC", "FLOAT", "REAL", "FLOAT", "DOUBLE PRECISION"];
@@ -18,9 +20,21 @@ angular.module('myApp', [])
     $scope.len = function(obj){
     	return obj ? (obj.length !== undefined ? obj.length :  Object.keys(obj).length) : 0;
     }
-
+    
+    $scope.showInPopup = function(rawStr){
+    	$scope.windowPopupRawContent = rawStr;
+    	$scope.showWindowPopup = 'rawContent';
+    }
+    
+    $window.onbeforeunload = function(){
+    	//send a request to close the app:
+    	$http.post("/close", JSON.stringify({}),
+        		{headers: {'Content-Type': 'application/json'}});
+        return null;
+    }
+    
     $scope.queryDb = function() {
-    	$scope.working=true;
+    	$scope.setWorking(true);
     	$scope.schemas = {};
     	$scope.setSelectedSchemaName("");
     	var data = {
@@ -30,9 +44,6 @@ angular.module('myApp', [])
         		{headers: {'Content-Type': 'application/json'}}
         ).then(function(response) {
         	data = response.data;
-        	//url might be different than the supplied one if we are init (see set_cache_address
-        	// in core.sql)
-        	$scope.dbAddress = data.dburl;
         	var schemas = data.schemas;
         	for(var j=0; j<schemas.length; j++){
         		var schemaName = schemas[j][0];
@@ -46,13 +57,14 @@ angular.module('myApp', [])
             if(schemas.length==1){
             	$scope.setSelectedSchemaName(schemas[0][0]);
             }
-            $scope.working=false;
+            $scope.setWorking(false);
         }, function(response) {
-            // error handler
+            $scope.setWorking(false);
+            // error handler. Must come after setWorking
         	$scope.handleError(response);
-        	$scope.working=false;
         });
     }
+
     $scope.setSelectedSchemaName = function(schema){
     	$scope.selectedSchemaName = schema;
     	$scope.tables = $scope.schemas[schema] || {};
@@ -68,7 +80,7 @@ angular.module('myApp', [])
     }
     $scope.queryTable = function(tableName) {
     	if (!tableName){return;}
-    	$scope.working=true;
+    	$scope.setWorking(true);
     	var startRow = $scope.selectedTable ? $scope.selectedTable.view[1] : 0;
         var data = {
         	schema_name: $scope.selectedSchemaName,
@@ -98,10 +110,11 @@ angular.module('myApp', [])
         	st.checkConstraints = data.cc || [];
         	st.indexes = data.idx || [];
         	st.sqlCreateText = data.sql_create || "";
-        	$scope.working=false;
-        }, function(response) {  // error handler
+        	$scope.setWorking(false);
+        }, function(response) {
+        	$scope.setWorking(false);
+        	// error handler. Must come after setWorking
         	$scope.handleError(response);
-        	$scope.working=false;
         });
     }
     $scope.toggleColSort = function(colname){
@@ -138,6 +151,10 @@ angular.module('myApp', [])
     	selT.view[2] = selT.view[1] + DEF_NUM_ROWS;
     	$scope.queryTable(selT.name);
     }
+    $scope.setWorking = function(value){
+    	$scope.clearErrorMsg();
+    	$scope.working = value;
+    };
     $scope.clearErrorMsg = function(){
     	$scope.errorMsg = null;
     }
@@ -187,6 +204,24 @@ angular.module('myApp', [])
     	}
     	return -1;
     }
-    $scope.queryDb();  // see if we passed the db url in the command line
+    
+    $scope.queryCmdlineAddress = function() {
+        $http.post("/query_cmdline_address", {},
+        		{headers: {'Content-Type': 'application/json'}}
+        ).then(function(response) {
+        	data = response.data || {};
+        	$scope.dbAddress = data.dburl || "";
+        	if ($scope.dbAddress){
+        		$scope.queryDb(); 
+        	}
+        }, function(response) {
+            //$scope.setWorking(false);
+            // error handler. Must come after setWorking
+        	//$scope.handleError(response);
+        });
+    }
+    // see if we passed the db url in the command line
+    $scope.queryCmdlineAddress();
+     
 })
 

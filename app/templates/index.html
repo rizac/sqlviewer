@@ -35,7 +35,7 @@
 			</ul>
 		</div>
 		<div id="tables">
-			<ul class="nav nav-tabs" ng-if="len(tables)">
+			<ul class="nav nav-tabs" ng-if="dbAddress">
 			<li class=caption><span>{{ '{{' }} len(tables) != 1 ? "Tables (" + len(tables) +"):" : "Table (1):" {{ '}}' }}</span></li>
 			<li ng-repeat="(tableName, numItems) in tables"
 			ng-class="{active:tableName==selectedTable.name}" ng-disabled="!numItems">
@@ -87,7 +87,8 @@
   				<tr ng-repeat="x in selectedTable.data">
     				<th>{{ '{{' }} 1 + selectedTable.view[1] + $index {{ '}}' }}</th>
     				<td ng-repeat="v in x track by $index" ng-class="{numeric:(selectedTable.pyTypes[$index]=='int' || selectedTable.pyTypes[$index]=='float')}">
-    				<textarea ng-if="v.newline">{{ '{{' }} v.val {{ '}}' }}</textarea>  <!-- <input ng-if="(v+'').indexOf('\n') == -1" type='text' value="{{ '{{' }} v {{ '}}' }}" /> -->
+    				<textarea ng-if="selectedTable.pyTypes[$index] =='str' && v.newline && v.val.length<=MAX_CELL_STR_LEN">{{ '{{' }} v.val {{ '}}' }}</textarea>
+    				<button ng-click="showInPopup(v.val)" ng-if="selectedTable.pyTypes[$index] =='str' && v.val.length>MAX_CELL_STR_LEN" class='btn btn-default'>string too long (click to view)</button>
     				<span class="null-val" ng-if="v.val==null">NULL</span>
     				<span class="bin-type" ng-if="selectedTable.pyTypes[$index]=='bytes' && v.val!=null ">binary: {{ '{{' }} v.val {{ '}}' }} Kb</span>
     				<span ng-if="selectedTable.pyTypes[$index]!='bytes' && v!=null  && !v.newline">{{ '{{' }} v.val {{ '}}' }}</span>
@@ -96,8 +97,8 @@
 			</tbody>
 			</table>
 			<!--  detail div "popup": -->
-			<div ng-if="showSelTableDetails" class="table-details alert">
-    			<a href ng-click="$parent.showSelTableDetails = false" class="close" aria-label="close">×</a>
+			<div ng-if="showWindowPopup == 'tableDetails'" class="win-popup table-details alert">
+    			<a href ng-click="$parent.showWindowPopup = false" class="close" aria-label="close">×</a>
     			<div>
     				<strong>Primary key</strong> <span class="pk note">pk</span>
     				<div ng-repeat="(key, val) in selectedTable.primaryKey">
@@ -137,11 +138,26 @@
     			</div>
   			</div>
   			<!-- raw sql create text popup for the selected table -->
-  			<div ng-if="showTableSqlCreate" class="table-sql-create alert">
-  				<a href ng-click="$parent.showTableSqlCreate = false" class="close" aria-label="close">×</a>
+  			<div ng-if="showWindowPopup == 'tableSqlCreate'" class="win-popup table-sql-create alert">
+  				<a href ng-click="$parent.showWindowPopup = false" class="close" aria-label="close">×</a>
     			<pre>
-    			{{ '{{' }}selectedTable.sqlCreateText {{ '}}' }}
+    			{{ '{{' }} selectedTable.sqlCreateText {{ '}}' }}
     			</pre>
+  			</div>
+  			<!-- raw sql create text popup for the selected table -->
+  			<div ng-if="showWindowPopup == 'rawContent'" class="win-popup alert">
+  				<a href ng-click="$parent.showWindowPopup = false" class="close" aria-label="close">×</a>
+    			<pre>
+    			{{ '{{' }} windowPopupRawContent {{ '}}' }}
+    			</pre>
+  			</div>
+  			<!-- raw sql query text popup FIXME: TO BE IMPLEMENTED!!!! -->
+  			<div ng-if="showWindowPopup == 'emitSql'" class="win-popup table-sql-emit alert">
+  				<a href
+  				ng-click="$parent.showTableSqlEmit = false" class="close" aria-label="close">×</a>
+    			<textarea>
+    			{{ '{{' }}selectedTable.sqlCreateText {{ '}}' }}
+    			</textarea>
   			</div>
 		</div>
 		<div id=footer>
@@ -154,7 +170,7 @@
 		  			<strong>Please wait...</strong>
 				</div>
 			</div>
-			<div class="table-options" ng-if="selectedTable">
+			<div class="alert table-options" ng-if="selectedTable"> <!-- use alert class so when warning or error div shows up we do not change parent div height -->
 				<table class=short_table_info>
 					<thead>
 						<tr>
@@ -175,9 +191,9 @@
 						</tr>
 					</tbody>
 				</table>
-				<button ng-click="$parent.showSelTableDetails = true" class="btn btn-primary">I</button>
+				<button ng-click="$parent.showWindowPopup = 'tableDetails'" class="btn btn-primary">I</button>
 				&nbsp;
-				<button ng-click="$parent.showTableSqlCreate = true" class="btn btn-primary">sql</button>
+				<button ng-click="$parent.showWindowPopup = 'tableSqlCreate'" class="btn btn-primary">sql</button>
 				&nbsp;
 				<button ng-click="changeView('start')" ng-disabled="selectedTable.view[0] == selectedTable.view[1]" class='btn btn-primary'><div class='larr'></div><div class='larr'></div></button>
 				<button ng-click="changeView(-1)" ng-disabled="selectedTable.view[0] == selectedTable.view[1]" class='btn btn-primary'><div class='larr'></div></button>

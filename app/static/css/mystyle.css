@@ -87,8 +87,7 @@ div#footer{
     align-items: center;
 }
 
-div#footer .table-details{
-    font-size: x-large;
+div#footer > .table-options{
     flex: 0 0 auto;
 }
 
@@ -181,15 +180,15 @@ div.working{
     animation-iteration-count: infinite;
 }
 
-div.table-details, div.table-sql-create {
+div.win-popup {
 	background-color: white;
     position: fixed;
-    right: 0px;
+    right: 10px;
+    bottom: 10px;
     width: 40vw;
     height: 50vh;
     overflow: auto;
     box-shadow: -5px 5px 12px 0px grey;
-    bottom: 0px;
     z-index: 100;
 }
 
@@ -246,4 +245,8 @@ https://css-tricks.com/snippets/css/css-triangle/
 
 button .rarr, button .larr{
 	border-color: white;
+}
+
+.alert{
+	margin-bottom: 0px;
 }

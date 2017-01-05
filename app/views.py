@@ -4,13 +4,12 @@ Created on Dec 2, 2016
 @author: riccardo
 '''
 
-
-from app import app
-from core.sql import getdb, get_table_count, get_table
-from flask.templating import render_template
-from flask.globals import request
 import json
-from flask import jsonify, g as flask_g
+from flask import jsonify, request
+from flask.templating import render_template
+from app import app
+from core.sql import getdb, get_table_data
+from core import shutdown_server, get_cache_address
 
 
 @app.route('/')
@@ -28,9 +27,14 @@ def query_db():
     for schemaname, tables in data.items():
         tbls = []
         for tablename in tables:
-            tbls.append((tablename, get_table_count(tables[tablename])))
+            tbls.append((tablename, data.get_row_count(tables[tablename])))
         ret.append([schemaname, tbls])
     return jsonify({'dburl': data.dburl, 'schemas': ret})
+
+
+@app.route('/query_cmdline_address', methods=['POST'])
+def query_cmdline_address():
+    return jsonify({'dburl': get_cache_address() or ""})
 
 
 @app.route('/query_table', methods=['POST'])
@@ -42,11 +46,16 @@ def query_table():
     num_results = data.get('num_results', None)
     order_colname = data.get('order_colname', None)
     order_ascending = data.get('order_ascending', True)
-    data = get_table(schemaname, tablename, order_colname, order_ascending, start_row, num_results)
-#    ret = []
-#     for tablename, table in data.items():
-#         ret.append((tablename, get_table_count(table)))
+    data = get_table_data(schemaname, tablename, order_colname, order_ascending, start_row,
+                          num_results)
     return jsonify(data)
+
+
+@app.route('/close', methods=['POST'])
+def shutdown():
+    if not app.config['DEBUG']:
+        shutdown_server(request)  # http://flask.pocoo.org/snippets/67/
+    return 'Server shutting down...'
 
 
 @app.errorhandler(Exception)
